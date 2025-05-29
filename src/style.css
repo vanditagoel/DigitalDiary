@@ -1,0 +1,128 @@
+@font-face {
+  font-family: 'CalgaryDemo';
+  /* Fallback to system fonts since font files are missing */
+  font-weight: normal;
+  font-style: normal;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: linear-gradient(135deg, #181c24 0%, #232a34 100%);
+  color: #f3f3f3;
+  font-family: 'CalgaryDemo', 'Inter', 'Segoe UI', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.5s, color 0.5s;
+}
+
+.header {
+  width: 100%;
+  padding: 2rem 0 1rem 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(30, 34, 44, 0.92);
+  border-bottom: 1px solid #232a34;
+  box-sizing: border-box; /*padding and border are included inside the element*/
+  box-shadow: 0 2px 12px 0 rgba(20, 20, 30, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+.logo {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #ffe082;
+  margin-left: 2rem;
+  letter-spacing: 0.1em;
+  font-family: 'CalgaryDemo', serif;
+  text-shadow: 0 2px 8px rgba(255, 224, 130, 0.12);
+}
+
+.button-group {
+  margin-right: 2rem;
+  display: flex;
+  gap: 1rem;
+}
+
+.btn {
+  padding: 0.6rem 1.5rem;
+  border: 1px solid #393e4f;
+  border-radius: 2rem;
+  background: linear-gradient(90deg, #232a34 0%, #2d3542 100%);
+  color: #ffe082;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  box-shadow: 0 2px 8px 0 rgba(35, 42, 52, 0.18);
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.btn:hover {
+  background: linear-gradient(90deg, #ffe082 0%, #f3d18a 100%);
+  color: #232a34;
+  box-shadow: 0 4px 16px 0 rgba(255, 224, 130, 0.18);
+}
+
+.btn.glass {
+  background: rgba(255, 224, 130, 0.08);
+  border: 1px solid #ffe082;
+  color: #ffe082;
+  box-shadow: 0 2px 8px 0 rgba(255, 224, 130, 0.08);
+}
+
+.btn.glass:hover {
+  background: linear-gradient(90deg, #ffe082 0%, #f3d18a 100%);
+  color: #232a34;
+  box-shadow: 0 4px 16px 0 rgba(255, 224, 130, 0.18);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 1rem;
+  margin: 2rem auto;
+  max-width: 700px;
+}
+
+.headline {
+  font-size: 2.5rem;
+  color: #ffe082;
+  font-family: 'CalgaryDemo', serif;
+  margin-bottom: 1rem;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 12px rgba(255, 224, 130, 0.18);
+}
+
+.subheadline {
+  font-size: 1.25rem;
+  color: #e0cfa9;
+  max-width: 500px;
+  margin: 0 auto;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.journal-list {
+  box-shadow: 0 2px 16px 0 rgba(35, 42, 52, 0.18);
+  border: 1px solid #232a34;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  background: #232a34;
+}
+::-webkit-scrollbar-thumb {
+  background: #393e4f;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ffe082;
+}
