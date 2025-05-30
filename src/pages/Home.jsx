@@ -1,280 +1,236 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from '../supabaseClient';
-import bcrypt from 'bcryptjs';
-
-function getFormattedDateTime() {
-  const now = new Date();
-  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  const date = now.toLocaleDateString(undefined, options);
-  const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return `${date} | ${time}`;
-}
+import { supabase } from "../supabaseClient";
+import bcrypt from "bcryptjs";
 
 function Home() {
-  const [journals, setJournals] = useState([]);
-  const [journalTitle, setJournalTitle] = useState("");
-  const [journalEntry, setJournalEntry] = useState("");
-  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  const [passwordInput, setPasswordInput] = useState("");
-  const [showResetPassword, setShowResetPassword] = useState(false);
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [userEmail, setUserEmail] = useState("");
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotMessage, setForgotMessage] = useState("");
   const navigate = useNavigate();
+  const [journals, setJournals] = useState([]);
+  const [title, setTitle] = useState("");
+  const [entry, setEntry] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [showSetPassword, setShowSetPassword] = useState(false);
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [password, setPassword] = useState("");
+  const [expandedJournalId, setExpandedJournalId] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem('isAuthenticated');
-    const userPassword = localStorage.getItem('userPassword');
-    const email = localStorage.getItem('userEmail');
-    // Only show password prompt if user is navigating from Landing and session is unlocked
-    const unlocked = sessionStorage.getItem('unlocked');
-    if (!isAuthenticated || !userPassword || !email) {
-      navigate('/');
+    // Only run this logic if we're on the Home page
+    if (window.location.pathname !== '/home') return;
+    const email = localStorage.getItem("userEmail");
+    if (!email) {
+      navigate("/");
       return;
     }
     setUserEmail(email);
-    if (!unlocked) {
-      // Only show password prompt if coming from Landing page
-      const fromLanding = sessionStorage.getItem('fromLanding');
-      if (fromLanding === 'true') {
-        setShowPasswordPrompt(true);
-        sessionStorage.removeItem('fromLanding');
+    fetchJournals(email);
+    // Password modal logic: only show on first load if not authenticated
+    const isAuth = localStorage.getItem('isAuthenticated');
+    const pwd = localStorage.getItem('userPassword');
+    if (!isAuth) {
+      if (!pwd) {
+        // Check Supabase for existing password for this user
+        supabase.from('auth').select('password').eq('email', email).single().then(({ data, error }) => {
+          if (data && data.password) {
+            localStorage.setItem('userPassword', data.password);
+            setShowSetPassword(false);
+            setShowPasswordPrompt(true);
+          } else {
+            setShowSetPassword(true);
+            setShowPasswordPrompt(false);
+          }
+        });
       } else {
-        // If not from Landing, stay on Home but do not show password prompt
-        fetchJournals(email);
+        setShowSetPassword(false);
+        setShowPasswordPrompt(true);
       }
-    } else {
-      fetchJournals(email);
     }
   }, [navigate]);
 
   const fetchJournals = async (email) => {
+    setLoading(true);
     const { data, error } = await supabase
-      .from('journals')
-      .select('*')
-      .eq('email', email)
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      setJournals(data);
-    }
+      .from("journals")
+      .select("id, title, entry, created_at")
+      .eq("email", email)
+      .order("created_at", { ascending: false });
+    if (error) setError("Failed to fetch journals");
+    else setJournals(data || []);
+    setLoading(false);
   };
 
-  const handlePasswordSubmit = async (e) => {
+  const handleAddJournal = async (e) => {
     e.preventDefault();
-    // Fetch hashed password from auth table for this email
-    const { data, error } = await supabase.from('auth').select('password').eq('email', userEmail).single();
-    if (error || !data) {
-      alert('No password found for this user.');
+    if (!title || !entry) return;
+    setLoading(true);
+    const { error } = await supabase.from("journals").insert({
+      title,
+      entry,
+      email: userEmail,
+      created_at: new Date().toISOString(),
+    });
+    if (error) setError("Failed to add journal");
+    setTitle("");
+    setEntry("");
+    fetchJournals(userEmail);
+    setLoading(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("isAuthenticated");
+    localStorage.removeItem("userPassword");
+    localStorage.removeItem("userEmail");
+    navigate("/");
+  };
+
+  const handleSetPassword = async () => {
+    if (password.length < 4) {
+      alert('Password must be at least 4 characters.');
       return;
     }
-    const match = await bcrypt.compare(passwordInput, data.password);
-    if (match) {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    localStorage.setItem('isAuthenticated', 'true');
+    localStorage.setItem('userPassword', hashedPassword);
+    if (userEmail) {
+      await supabase.from('users').upsert({ email: userEmail, password: hashedPassword });
+      await supabase.from('auth').upsert({ email: userEmail, password: hashedPassword });
+      // Register user in Supabase Auth for password reset support
+      await supabase.auth.signUp({ email: userEmail, password });
+      localStorage.setItem('userEmail', userEmail);
+    }
+    setShowSetPassword(false);
+    setShowPasswordPrompt(false);
+    setPassword("");
+  };
+
+  const handlePasswordLogin = async () => {
+    const storedPwd = localStorage.getItem('userPassword');
+    if (!password) {
+      alert('Please enter your password.');
+      return;
+    }
+    if (storedPwd && await bcrypt.compare(password, storedPwd)) {
+      localStorage.setItem('isAuthenticated', 'true');
       setShowPasswordPrompt(false);
-      sessionStorage.setItem('unlocked', 'true');
     } else {
       alert('Incorrect password.');
     }
   };
 
-  const handleStart = async () => {
-    if (!journalTitle.trim() && !journalEntry.trim()) {
-      alert('Please enter a title or entry.');
-      return;
-    }
-    if (!userEmail) {
-      alert('User email not found. Please log in again.');
-      return;
-    }
-    const newEntry = {
-      title: journalTitle,
-      entry: journalEntry,
-      email: userEmail,
-      created_at: new Date().toISOString(),
-    };
-    console.log('Inserting journal entry:', newEntry);
-    const { data, error } = await supabase.from('journals').insert([newEntry]).select();
-    if (error) {
-      console.error('Supabase insert error:', error);
-      alert('Failed to save entry: ' + error.message);
-      return;
-    }
-    if (data && data[0]) {
-      setJournals([data[0], ...journals]);
-      setJournalTitle("");
-      setJournalEntry("");
-    }
-  };
-
-  const handleTextChange = async (id, value, field) => {
-    setJournals(journals.map(j => j.id === id ? { ...j, [field]: value } : j));
-    await supabase.from('journals').update({ [field]: value }).eq('id', id);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('userPassword');
-    localStorage.removeItem('userEmail');
-    sessionStorage.removeItem('unlocked');
-    navigate('/');
-  };
-
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    // Fetch hashed password from auth table for this email
-    const { data, error } = await supabase.from('auth').select('password').eq('email', userEmail).single();
-    if (error || !data) {
-      alert('No password found for this user.');
-      return;
-    }
-    const match = await bcrypt.compare(oldPassword, data.password);
-    if (!match) {
-      alert('Old password is incorrect.');
-      return;
-    }
-    if (newPassword.length < 4) {
-      alert('New password must be at least 4 characters.');
-      return;
-    }
-    const newHashed = await bcrypt.hash(newPassword, 10);
-    localStorage.setItem('userPassword', newHashed);
-    // Update password in both users and auth tables
-    await supabase.from('users').update({ password: newHashed }).eq('email', userEmail);
-    await supabase.from('auth').update({ password: newHashed }).eq('email', userEmail);
-    setShowResetPassword(false);
-    setOldPassword("");
-    setNewPassword("");
-    alert('Password reset successfully!');
-  };
-
-  if (showPasswordPrompt) {
-    return (
-      <main className="main">
-        <h2>Enter your password to continue</h2>
-        <form onSubmit={handlePasswordSubmit}>
-          <input
-            type="password"
-            value={passwordInput}
-            onChange={e => setPasswordInput(e.target.value)}
-            placeholder="Enter your password"
-            style={{padding:'0.5rem',borderRadius:'0.5rem',border:'1px solid #393e4f',marginBottom:'1rem'}}
-          />
-          <br />
-          <button className="btn" type="submit">Enter</button>
-        </form>
-        <button className="btn glass" style={{marginTop:'1rem'}} onClick={async () => {
-          setShowForgotPassword(true);
-          setForgotMessage("");
-          // Use Supabase to send a password reset email to the authenticated user's email
-          const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-            redirectTo: window.location.origin + '/reset-password',
-          });
-          if (error) {
-            setForgotMessage('Failed to send reset email.');
-          } else {
-            setForgotMessage('Password reset email sent! Check your inbox.');
-          }
-        }}>
-          Forgot Password?
-        </button>
-        {showForgotPassword && (
-          <div style={{marginTop:'2rem',background:'#232a34',padding:'1.5rem',borderRadius:'1rem'}}>
-            <h3>Forgot Password</h3>
-            {forgotMessage && <div style={{marginTop:'1rem',color:'#ffe082'}}>{forgotMessage}</div>}
-            <button className="btn glass" style={{marginTop:'1rem'}} onClick={() => setShowForgotPassword(false)}>
-              Close
-            </button>
-          </div>
-        )}
-      </main>
-    );
-  }
+  // Only show glassmorph effect/modal in Home page, not on Landing
+  const isAuthenticated = localStorage.getItem('isAuthenticated');
 
   return (
-    <>
+    <div className={isAuthenticated ? 'main' : 'main glass-bg'}>
       <header className="header">
         <div className="logo">Loona</div>
         <div className="button-group">
-          <button className="btn" onClick={() => navigate("/")}>Landing</button>
-          <button className="btn" onClick={handleLogout}>Logout</button>
-          <button className="btn" onClick={() => setShowResetPassword(true)}>Reset Password</button>
+          <button className="btn" onClick={handleLogout}>Log Out</button>
         </div>
       </header>
-      {showResetPassword && (
-        <main className="main">
-          <h2>Reset Password</h2>
-          <form onSubmit={handleResetPassword}>
-            <input
-              type="password"
-              value={oldPassword}
-              onChange={e => setOldPassword(e.target.value)}
-              placeholder="Enter old password"
-              style={{padding:'0.5rem',borderRadius:'0.5rem',border:'1px solid #393e4f',marginBottom:'1rem'}}
-              required
-            />
-            <br />
-            <input
-              type="password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              placeholder="Enter new password"
-              style={{padding:'0.5rem',borderRadius:'0.5rem',border:'1px solid #393e4f',marginBottom:'1rem'}}
-              required
-            />
-            <br />
-            <button className="btn" type="submit">Save New Password</button>
-            <button className="btn glass" type="button" onClick={() => setShowResetPassword(false)} style={{marginLeft:'1rem'}}>Cancel</button>
-          </form>
-        </main>
+      <h1 className="headline">Hi, Love.</h1>
+      {(!isAuthenticated && (showSetPassword || showPasswordPrompt)) && (
+        <div className="glass-modal-overlay" style={{zIndex: 2000}}>
+          <div className="glass-modal">
+            {showSetPassword && (
+              <>
+                <button
+                  className="back-arrow-btn"
+                  onClick={() => navigate("/")}
+                  aria-label="Back to landing"
+                >
+                  &#8592;
+                </button>
+                <h2 style={{marginTop:'0.5rem'}}>Set a Password</h2>
+                <p style={{marginBottom:'1rem',color:'#ffe082'}}>For your privacy, set a password to unlock your journal.</p>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Enter a password"
+                  style={{padding:'0.5rem',borderRadius:'0.5rem',border:'1px solid #393e4f',marginBottom:'1rem',width:'100%',maxWidth:'260px',background:'#232a34cc',color:'#ffe082'}}
+                />
+                <br />
+                <button className="btn" onClick={handleSetPassword}>Set</button>
+              </>
+            )}
+            {showPasswordPrompt && !showSetPassword && (
+              <>
+                <h2>Enter Password</h2>
+                <p style={{marginBottom:'1rem',color:'#ffe082'}}>Enter password to access your Journal entries.</p>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  style={{padding:'0.5rem',borderRadius:'0.5rem',border:'1px solid #393e4f',marginBottom:'1rem',width:'100%',maxWidth:'260px',background:'#232a34cc',color:'#ffe082'}}
+                />
+                <br />
+                <div style={{display:'flex',justifyContent:'center',gap:'1rem',marginTop:'1.2rem'}}>
+                  <button className="btn" onClick={handleLogout}>Logout</button>
+                  <button className="btn" onClick={handlePasswordLogin}>Unlock</button>
+                  <button className="btn" onClick={async()=>{
+                    if (!userEmail) { alert('No user email found.'); return; }
+                    // Use Supabase v2 resetPasswordForEmail
+                    const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo: window.location.origin + '/reset-password' });
+                    if (error) alert('Failed to send reset email. Make sure your Supabase project has email auth enabled and SMTP is configured.');
+                    else alert('Password reset email sent! Check your inbox and spam folder.');
+                  }}>Reset</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
-      {!showResetPassword && (
-        <main className="main">
-          <h1 className="headline">Welcome Home</h1>
-          <p className="subheadline">Start writing your journal entries below.</p>
+      {!showAddForm && (
+        <button className="btn" style={{marginTop:'2.5rem', fontSize:'1.15rem', padding:'0.8rem 2.2rem'}} onClick={()=>setShowAddForm(true)}>Add Entry</button>
+      )}
+      {showAddForm && (
+        <form onSubmit={handleAddJournal} style={{margin:'2.5rem auto', maxWidth:'540px', width:'100%', display:'flex', flexDirection:'column', alignItems:'center', gap:'1.2rem'}}>
           <input
             type="text"
             placeholder="Title"
-            value={journalTitle}
-            onChange={e => setJournalTitle(e.target.value)}
-            style={{padding:'0.5rem',borderRadius:'0.5rem',border:'1px solid #393e4f',marginBottom:'1rem',width:'100%',maxWidth:'400px'}}
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            style={{padding: "0.7rem", borderRadius: "0.5rem", border: "1px solid #393e4f", width:'100%', maxWidth:'420px', fontSize:'1.1rem', background:'#232a34cc', color:'#ffe082'}}
+            autoFocus
           />
-          <br />
           <textarea
-            className="journal-text"
-            placeholder="Write your thoughts here..."
-            value={journalEntry}
-            onChange={e => setJournalEntry(e.target.value)}
-            style={{marginBottom:'1rem',width:'100%',maxWidth:'400px',minHeight:'100px'}}
+            placeholder="Write your entry..."
+            value={entry}
+            onChange={e => setEntry(e.target.value)}
+            style={{padding: "0.7rem", borderRadius: "0.5rem", border: "1px solid #393e4f", width:'100%', maxWidth:'420px', minHeight:'120px', fontSize:'1.08rem', background:'#232a34cc', color:'#ffe082', resize:'vertical', boxSizing:'border-box'}}
+            rows={Math.max(5, entry.split('\n').length)}
           />
-          <br />
-          <button className="btn glass" onClick={handleStart}>Save Entry</button>
-          <div id="home-journal-list" className="journal-list">
-            {journals.map(journal => (
-              <div key={journal.id} className="journal-entry glass">
-                <div className="timestamp">{new Date(journal.created_at).toLocaleString()}</div>
-                <input
-                  type="text"
-                  value={journal.title}
-                  placeholder="Title"
-                  onChange={e => handleTextChange(journal.id, e.target.value, 'title')}
-                  style={{padding:'0.5rem',borderRadius:'0.5rem',border:'1px solid #393e4f',marginBottom:'0.5rem',width:'100%'}}
-                />
-                <textarea
-                  className="journal-text"
-                  placeholder="Write your thoughts here..."
-                  value={journal.entry}
-                  onChange={e => handleTextChange(journal.id, e.target.value, 'entry')}
-                  style={{width:'100%',minHeight:'80px'}}
-                />
-              </div>
-            ))}
+          <div style={{display:'flex',gap:'1.2rem',marginTop:'0.5rem'}}>
+            <button className="btn" type="submit" disabled={loading}>Save</button>
+            <button className="btn" type="button" onClick={()=>{setShowAddForm(false);setTitle("");setEntry("");}}>Cancel</button>
           </div>
-        </main>
+        </form>
       )}
-    </>
+      {loading && <p>Loading...</p>}
+      {error && <p style={{color: "#ff6f6f"}}>{error}</p>}
+      <div className="journal-list" style={{maxWidth:'540px', width:'100%', margin:'0 auto'}}>
+        {journals.length === 0 && <p>No journal entries yet.</p>}
+        {journals.map(journal => (
+          <div key={journal.id} className={isAuthenticated ? '' : 'glass-modal'} style={{background: "rgba(35,42,52,0.85)", margin: "1rem 0", padding: "1rem", borderRadius: "0.7rem", boxShadow: "0 2px 8px #0004", width:'100%'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}} onClick={() => setExpandedJournalId(expandedJournalId === journal.id ? null : journal.id)}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'flex-start',width:'90%'}}>
+                <h3 style={{color: "#ffe082", margin:0, fontWeight:300, fontSize:'1.08rem', letterSpacing:'0.01em'}}>{journal.title}</h3>
+                <span style={{fontSize:'0.98rem', color:'#e0cfa9', fontWeight:300, marginTop:'0.1rem'}}>{new Date(journal.created_at).toLocaleDateString()}</span>
+              </div>
+              <span style={{fontSize:'0.95rem',color:'#ffe082',transition:'transform 0.2s',fontWeight:200,transform: expandedJournalId === journal.id ? 'rotate(90deg)' : 'rotate(0deg)'}}>&#9654;</span>
+            </div>
+            {expandedJournalId === journal.id && (
+              <div style={{color: "#e0cfa9", marginTop: "1rem", textAlign:'left'}}>{journal.entry}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
