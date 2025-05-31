@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import bcrypt from "bcryptjs";
-import emailjs from 'emailjs-com';
 
 function Home() {
   const navigate = useNavigate();
