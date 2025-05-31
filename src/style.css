@@ -1,6 +1,5 @@
 @font-face {
   font-family: 'CalgaryDemo';
-  /* Fallback to system fonts since font files are missing */
   font-weight: normal;
   font-style: normal;
 }
@@ -260,4 +259,27 @@ body {
   color: #fffbe6;
   transform: translateX(-3px) scale(1.12);
   text-shadow: 0 2px 8px #ffe08288;
+}
+
+.glassmorph-password-modal {
+  background: rgba(35, 42, 52, 0.82);
+  border-radius: 1.2rem;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18), 0 2px 16px #0008;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1.5px solid rgba(255, 224, 130, 0.13);
+  padding: 2.5rem 2.2rem 2.2rem 2.2rem;
+  min-width: 320px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+  transition: box-shadow 0.2s, background 0.2s;
+  animation: glassFadeIn 0.5s cubic-bezier(.4,0,.2,1);
+}
+
+@keyframes glassFadeIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
