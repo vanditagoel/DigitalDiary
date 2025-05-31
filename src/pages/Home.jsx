@@ -5,25 +5,27 @@ import bcrypt from "bcryptjs";
 
 function Home() {
   const navigate = useNavigate();
-  const [journals, setJournals] = useState([]);
-  const [title, setTitle] = useState("");
-  const [entry, setEntry] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [userEmail, setUserEmail] = useState("");
-  const [expandedJournalId, setExpandedJournalId] = useState(null);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [passwordModal, setPasswordModal] = useState(true);
-  const [setPasswordMode, setSetPasswordMode] = useState(false);
-  const [passwordInput, setPasswordInput] = useState("");
-  const [passwordError, setPasswordError] = useState("");
+  const [journals, setJournals] = useState([]); // List of journal entries
+  const [title, setTitle] = useState(""); // New journal title
+  const [entry, setEntry] = useState(""); // New journal entry text
+  const [loading, setLoading] = useState(false); // Loading state for async actions
+  const [error, setError] = useState(""); // Error message
+  const [userEmail, setUserEmail] = useState(""); // Authenticated user's email
+  const [expandedJournalId, setExpandedJournalId] = useState(null); // Which journal is expanded
+  const [showAddForm, setShowAddForm] = useState(false); // Show/hide add entry form
+  // Password modal state
+  const [passwordModal, setPasswordModal] = useState(true); // Show/hide password modal
+  const [setPasswordMode, setSetPasswordMode] = useState(false); // True if user needs to set password
+  const [passwordInput, setPasswordInput] = useState(""); // Password input value
+  const [passwordError, setPasswordError] = useState(""); // Password error message
 
+  // On mount, check Supabase Auth session and password setup
   useEffect(() => {
     (async () => {
       // Check Supabase Auth session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || !session.user || !session.user.email) {
-        navigate("/");
+        navigate("/"); // Redirect to landing if not logged in
         return;
       }
       setUserEmail(session.user.email);
@@ -34,15 +36,16 @@ function Home() {
         .eq("email", session.user.email)
         .single();
       if (!data || error) {
-        setSetPasswordMode(true);
+        setSetPasswordMode(true); // Prompt to set password
         setPasswordModal(true);
       } else {
-        setSetPasswordMode(false);
+        setSetPasswordMode(false); // Prompt to enter password
         setPasswordModal(true);
       }
     })();
   }, [navigate]);
 
+  // Fetch all journals for the user
   const fetchJournals = async (email) => {
     setLoading(true);
     const { data, error } = await supabase
@@ -55,6 +58,7 @@ function Home() {
     setLoading(false);
   };
 
+  // Add a new journal entry
   const handleAddJournal = async (e) => {
     e.preventDefault();
     if (!title || !entry) return;
@@ -72,12 +76,13 @@ function Home() {
     setLoading(false);
   };
 
+  // Log out the user
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/");
   };
 
-  // Password modal logic
+  // Set a new password for the journal
   const handleSetPassword = async (e) => {
     e.preventDefault();
     if (!passwordInput || passwordInput.length < 4) {
@@ -99,6 +104,7 @@ function Home() {
     fetchJournals(userEmail);
   };
 
+  // Enter password to unlock journals
   const handleEnterPassword = async (e) => {
     e.preventDefault();
     const { data, error } = await supabase
@@ -122,8 +128,10 @@ function Home() {
     fetchJournals(userEmail);
   };
 
+  // Render UI
   return (
     <div className='main'>
+      {/* Header with logo and logout button */}
       <header className="header">
         <div className="logo">Loona</div>
         <div className="button-group">
@@ -131,11 +139,13 @@ function Home() {
         </div>
       </header>
       <h1 className="headline">Hi, Love.</h1>
+      {/* Password modal for setting or entering password */}
       {passwordModal && (
         <div className="glass-modal-overlay" style={{zIndex: 2000}}>
           <div className="glass-modal">
             {setPasswordMode ? (
               <>
+                {/* Set password mode */}
                 <button
                   className="back-arrow-btn"
                   onClick={async () => {
@@ -161,6 +171,7 @@ function Home() {
               </>
             ) : (
               <>
+                {/* Enter password mode */}
                 <h2>Enter Password</h2>
                 <p style={{marginBottom:'1rem',color:'#ffe082'}}>Enter password to access your Journal entries.</p>
                 <input
@@ -187,8 +198,10 @@ function Home() {
           </div>
         </div>
       )}
+      {/* Main journal UI after password unlock */}
       {!passwordModal && (
         <>
+          {/* Add Entry button and form */}
           {!showAddForm && (
             <button className="btn" style={{marginTop:'2.5rem', fontSize:'1.15rem', padding:'0.8rem 2.2rem'}} onClick={()=>setShowAddForm(true)}>Add Entry</button>
           )}
@@ -215,8 +228,10 @@ function Home() {
               </div>
             </form>
           )}
+          {/* Loading and error messages */}
           {loading && <p>Loading...</p>}
           {error && <p style={{color: "#ff6f6f"}}>{error}</p>}
+          {/* Journal entries list */}
           <div className="journal-list" style={{maxWidth:'540px', width:'100%', margin:'0 auto'}}>
             {journals.length === 0 && <p>No journal entries yet.</p>}
             {journals.map(journal => (
